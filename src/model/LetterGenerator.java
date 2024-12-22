@@ -1,9 +1,9 @@
 package model;
 
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.util.*;
 
 public class LetterGenerator {
@@ -18,88 +18,71 @@ public class LetterGenerator {
     private static final int[] MAX_COUNTS = {
         4, 2, 2, 2, 3, 2, 2, 2, 3, 2, 2, 2, 2,
         2, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1
-    }; // Ces nombres indiquent combien de fois chaque lettre peut apparaître (A-Z)
+    };
 
-    // Chemin du fichier du dictionnaire
-    private static final String DICTIONARY_PATH = "dictionary.txt";
+    // Chemin du répertoire contenant les fichiers du dictionnaire
+    private static final String dictionaryPath = "C:/Users/lenovo/OneDrive/Bureau/projet cours java (jeu des mots)avec nour/WordGameProject/src/dictionary/";
 
-    /**
-     * Génère des lettres aléatoires et des longueurs de mots permettant la formation de 3 mots
-     * de longueurs spécifiques. Les mots doivent avoir entre 3 et 6 caractères.
-     * 
-     * @param totalLetters Nombre total de lettres à générer.
-     * @return Une carte contenant les lettres générées et les longueurs de mots cibles.
-     */
     public static Map<String, Object> generateGameSetup(int totalLetters) {
-        List<String> dictionary = loadDictionary(); // Charger le dictionnaire
-        Random random = new Random(); // Objet pour générer des valeurs aléatoires
+        Random random = new Random();
         List<Character> letters;
         List<Integer> wordLengths;
+        List<String> foundWords = new ArrayList<>(); // Liste pour stocker les mots trouvés
 
-        System.out.println("Génération de la configuration du jeu...");
+        System.out.println("=== Début de la génération de la configuration du jeu ===");
 
         do {
-            wordLengths = generateRandomWordLengths(totalLetters, random); // Générer des longueurs de mots
-            letters = generateRandomLetters(totalLetters, random); // Générer des lettres aléatoires
+            // Étape 1 : Générer les longueurs de mots aléatoires
+            wordLengths = generateRandomWordLengths(random);  // Génération des longueurs aléatoires
 
-            // Affichage pour débogage des lettres et longueurs générées
-            System.out.println("Lettres générées: " + letters);
-            System.out.println("Longueurs des mots générées: " + wordLengths);
-        } while (findWordsForLengths(letters, wordLengths, dictionary).size() < 1);  // Temporairement fixé à 1 mot
+            // Étape 2 : Générer des lettres aléatoires
+            letters = generateRandomLetters(totalLetters, random);  // Génération des lettres
 
-        // Retourner les lettres et longueurs des mots
+            // Réinitialiser les mots trouvés à chaque itération
+            foundWords.clear();
+
+        } while (!findOneWordForEachLength(letters, wordLengths, foundWords));  // Continue tant que nous n'avons pas trouvé 1 mot valide pour chaque longueur
+
+        System.out.println("=== Configuration du jeu générée avec succès ===");
+
+        // Affichage des résultats finaux
+        System.out.println("Longueurs de mots générées: " + wordLengths);
+        System.out.println("Lettres générées: " + letters);
+        
+        // Afficher les mots trouvés pour chaque longueur qui peuvent être formés avec les lettres générées
+        System.out.println("Mots trouvés pour chaque longueur:");
+        for (String word : foundWords) {
+            System.out.println(word);
+        }
+
         Map<String, Object> result = new HashMap<>();
         result.put("letters", letters);
         result.put("wordLengths", wordLengths);
+        result.put("foundWords", foundWords);
         return result;
     }
 
-    /**
-     * Génère des longueurs de mots aléatoires qui somment à un nombre total de lettres
-     * sans dépasser, en s'assurant que chaque longueur de mot est entre 3 et 6 caractères.
-     * 
-     * @param totalLetters Nombre total de lettres à générer.
-     * @param random Objet pour générer des valeurs aléatoires.
-     * @return Une liste de 3 longueurs de mots aléatoires.
-     */
-    private static List<Integer> generateRandomWordLengths(int totalLetters, Random random) {
-        List<Integer> lengths = new ArrayList<>();
-        int remaining = totalLetters;
-
-        System.out.println("Génération des longueurs de mots...");
-
-        // Assurez-vous que les longueurs de mots sont entre 3 et 6 caractères
+    private static List<Integer> generateRandomWordLengths(Random random) {
+        // Générer 3 longueurs de mots distinctes entre 3 et 6
+        Set<Integer> lengths = new HashSet<>();
         while (lengths.size() < 3) {
-            // Si la somme des longueurs restantes est inférieure ou égale aux lettres restantes, on arrête
-            int length = random.nextInt(4) + 3;  // Génère une longueur entre 3 et 6
-            if (remaining - length >= (3 - lengths.size()) * 3) { // Vérifier s'il reste assez de lettres
-                lengths.add(length);
-                remaining -= length;
-            }
+            int length = random.nextInt(4) + 3;  // Longueur entre 3 et 6
+            lengths.add(length);  // Un Set garantit l'unicité
         }
-        System.out.println("Longueurs de mots finales: " + lengths);
-        return lengths;
+
+        // Convertir le Set en List et trier par ordre croissant
+        List<Integer> lengthList = new ArrayList<>(lengths);
+        Collections.sort(lengthList);  // Tri croissant des longueurs
+        return lengthList;
     }
 
- 
-
-
-    /**
-     * Génère des lettres aléatoires en fonction des contraintes pré-définies pour la fréquence de chaque lettre.
-     * 
-     * @param count Le nombre total de lettres à générer.
-     * @param random Objet pour générer des valeurs aléatoires.
-     * @return Une liste de lettres générées aléatoirement.
-     */
     private static List<Character> generateRandomLetters(int count, Random random) {
+        // Générer des lettres aléatoires avec des limitations par lettre
         List<Character> letters = new ArrayList<>();
-        int[] currentCounts = new int[MAX_COUNTS.length]; // Compteur pour chaque lettre
+        int[] currentCounts = new int[MAX_COUNTS.length];
 
-        // Générer des lettres jusqu'à ce que nous ayons le nombre souhaité
         while (letters.size() < count) {
-            // Choisir une lettre aléatoire parmi l'alphabet
             int index = random.nextInt(ALPHABETS.length);
-            // Vérifier si nous pouvons encore utiliser cette lettre selon le nombre maximal autorisé
             if (currentCounts[index] < MAX_COUNTS[index]) {
                 letters.add(ALPHABETS[index]);
                 currentCounts[index]++;
@@ -108,119 +91,80 @@ public class LetterGenerator {
         return letters;
     }
 
-    /**
-     * Charge le fichier dictionnaire contenant les mots valides.
-     * Les mots sont lus et convertis en majuscules.
-     * 
-     * @return Une liste de mots provenant du dictionnaire.
-     */
-    private static List<String> loadDictionary() {
-        List<String> dictionary = new ArrayList<>();
-        try {
-            // Tenter de charger dictionary.txt depuis le dossier des ressources
-            InputStream stream = LetterGenerator.class.getClassLoader().getResourceAsStream("dictionary.txt");
-
-            if (stream == null) {
-                System.err.println("Impossible de trouver dictionary.txt dans le dossier des ressources.");
-                return dictionary;
-            }
-
-            // Lire le dictionnaire
-            try (BufferedReader br = new BufferedReader(new InputStreamReader(stream))) {
-                String line;
-                while ((line = br.readLine()) != null) {
-                    dictionary.add(line.trim().toUpperCase());
-                }
-            }
-            System.out.println("Dictionnaire chargé avec succès, contenant " + dictionary.size() + " mots.");
-        } catch (IOException e) {
-            System.err.println("Erreur lors du chargement du dictionnaire: " + e.getMessage());
-        }
-        return dictionary;
-    }
-
-    /**
-     * Trouve les mots du dictionnaire qui correspondent aux longueurs données et peuvent être formés avec les lettres disponibles.
-     * 
-     * @param letters Une liste de lettres disponibles pour former des mots.
-     * @param wordLengths Une liste des longueurs cibles des mots.
-     * @param dictionary Une liste des mots valides.
-     * @return Une liste des mots valides qui correspondent aux critères.
-     */
-    private static List<String> findWordsForLengths(List<Character> letters, List<Integer> wordLengths, List<String> dictionary) {
-        List<String> validWords = new ArrayList<>();
+    private static boolean findOneWordForEachLength(List<Character> letters, List<Integer> wordLengths, List<String> foundWords) {
         Map<Character, Integer> letterCounts = getLetterCounts(letters);
 
-        System.out.println("Recherche de mots valides...");
-        System.out.println("Comptes des lettres: " + letterCounts);  // Débogage des comptes de lettres
+        // Assurer qu'on trouve 1 mot valide pour chaque longueur
+        for (int length : wordLengths) {
+            List<String> words = loadWordsByLength(length);
 
-        for (String word : dictionary) {
-            // Vérifier si la longueur du mot correspond à une des longueurs cibles
-            if (wordLengths.contains(word.length())) {
-                System.out.println("Vérification du mot: " + word);
-                // Vérifier si le mot peut être formé avec les lettres disponibles
+            // Compteur pour les mots valides trouvés
+            boolean wordFound = false;
+
+            for (String word : words) {
                 if (canFormWord(word, letterCounts)) {
-                    validWords.add(word);
-                    System.out.println("Mot valide trouvé: " + word);
-                } else {
-                    System.out.println("Mot impossible à former: " + word);
+
+                    // Vérifier si le mot a déjà été ajouté (unicité)
+                    if (!foundWords.contains(word)) {
+                        foundWords.add(word);  // Ajouter le mot trouvé à la liste des mots trouvés
+                        wordFound = true;
+                        break;  // Si un mot valide est trouvé, on passe à la longueur suivante
+                    }
                 }
             }
-        }
 
-        System.out.println("Nombre de mots valides trouvés: " + validWords.size());
-        return validWords;
-    }
-
-    /**
-     * Vérifie si un mot peut être formé en utilisant les lettres disponibles.
-     * 
-     * @param word Le mot à vérifier.
-     * @param letterCounts Une carte des lettres disponibles avec leurs comptes.
-     * @return True si le mot peut être formé, false sinon.
-     */
-    private static boolean canFormWord(String word, Map<Character, Integer> letterCounts) {
-        Map<Character, Integer> wordCounts = getLetterCounts(word.toCharArray());
-
-        System.out.println("Vérification si le mot peut être formé: " + word);
-        System.out.println("Comptes des lettres du mot: " + wordCounts);
-
-        for (Map.Entry<Character, Integer> entry : wordCounts.entrySet()) {
-            char letter = entry.getKey();
-            int count = entry.getValue();
-            int availableCount = letterCounts.getOrDefault(letter, 0);
-
-            if (availableCount < count) {
-                System.out.println("Pas assez de lettres pour: " + letter);
+            // Si aucun mot valide n'est trouvé pour cette longueur, retourner false pour recommencer
+            if (!wordFound) {
                 return false;
             }
         }
 
-        System.out.println("Le mot peut être formé: " + word);
+        return true;  // Retourne true si nous avons trouvé un mot valide pour chaque longueur
+    }
+
+    private static List<String> loadWordsByLength(int length) {
+        List<String> words = new ArrayList<>();
+        File file = new File(dictionaryPath + length + "_LETTRES.txt");
+
+        if (!file.exists()) {
+            System.err.println("Fichier introuvable pour les mots de longueur " + length);
+            return words;
+        }
+
+        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                words.add(line.trim().toUpperCase());
+            }
+        } catch (IOException e) {
+            System.err.println("Erreur lors du chargement des mots de longueur " + length + ": " + e.getMessage());
+        }
+
+        return words;
+    }
+
+    private static boolean canFormWord(String word, Map<Character, Integer> letterCounts) {
+        Map<Character, Integer> wordCounts = getLetterCounts(word.toCharArray());
+
+        // Vérifier si chaque lettre du mot peut être formée avec les lettres disponibles
+        for (Map.Entry<Character, Integer> entry : wordCounts.entrySet()) {
+            char letter = entry.getKey();
+            int count = entry.getValue();
+            if (letterCounts.getOrDefault(letter, 0) < count) {
+                return false;  // Si on ne peut pas former le mot, retourner false
+            }
+        }
         return true;
     }
 
-    /**
-     * Compte les occurrences de chaque caractère dans une liste de lettres.
-     * 
-     * @param letters Une liste de lettres.
-     * @return Une carte contenant le nombre de chaque lettre.
-     */
     private static Map<Character, Integer> getLetterCounts(List<Character> letters) {
         Map<Character, Integer> counts = new HashMap<>();
         for (char c : letters) {
             counts.put(c, counts.getOrDefault(c, 0) + 1);
         }
-        System.out.println("Comptes des lettres: " + counts);  // Débogage des comptes de lettres
         return counts;
     }
 
-    /**
-     * Version surchargée de getLetterCounts qui fonctionne avec un tableau de caractères.
-     * 
-     * @param letters Un tableau de caractères.
-     * @return Une carte contenant le nombre de chaque lettre.
-     */
     private static Map<Character, Integer> getLetterCounts(char[] letters) {
         Map<Character, Integer> counts = new HashMap<>();
         for (char c : letters) {
